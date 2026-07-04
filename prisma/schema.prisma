@@ -1,0 +1,88 @@
+// Prisma schema for the FNF Chanda Fund dashboard.
+// Run `npx prisma db push` (or migrate) against your Postgres database to create these tables.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // If you use Vercel Postgres / Neon with pooling, set DIRECT_URL to the
+  // non-pooled connection string for migrations.
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum MonthStatus {
+  NA
+  DUE
+  PAID
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  role      Role     @default(MEMBER)
+  name      String
+  // loginId is what the person types to sign in (phone number, email, etc).
+  // There is no self-registration — only an admin can create a User row.
+  loginId   String   @unique
+  password  String // bcrypt hash, never plaintext
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  months      MonthRecord[]
+  deposits    DepositRequest[]
+  withdrawals WithdrawalRequest[]
+}
+
+model MonthRecord {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year       Int
+  monthIndex Int // 0 = January ... 11 = December
+  monthLabel String // display label, e.g. "জানুয়ারি" or "January"
+  status     MonthStatus @default(DUE)
+  amount     Int         @default(0)
+
+  @@unique([userId, year, monthIndex])
+  @@index([userId, year])
+}
+
+model DepositRequest {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year        Int
+  monthIndex  Int
+  monthLabel  String
+  amount      Int
+  status      RequestStatus @default(PENDING)
+  submittedAt DateTime      @default(now())
+  decidedAt   DateTime?
+  decidedBy   String?
+}
+
+model WithdrawalRequest {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Int
+  reason      String
+  status      RequestStatus @default(PENDING)
+  requestedAt DateTime      @default(now())
+  decidedAt   DateTime?
+  decidedBy   String?
+}
